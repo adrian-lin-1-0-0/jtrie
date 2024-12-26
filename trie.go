@@ -1,61 +1,67 @@
 package jtrie
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 type JsonTrie map[string]interface{}
 
-func (t JsonTrie) Get(path ...string) (interface{}, bool) {
-	var obj interface{} = t
-	for _, key := range path {
+func (t JsonTrie) Get(keys ...string) (interface{}, bool) {
+	var obj interface{} = map[string]interface{}(t)
+	for _, key := range keys {
 		switch v := obj.(type) {
-		case JsonTrie:
-			obj = v[key]
 		case map[string]interface{}:
 			obj = v[key]
 		default:
 			return nil, false
 		}
 	}
+
+	if obj == nil {
+		return nil, false
+	}
+
 	return obj, true
 }
 
-func (t JsonTrie) Set(value interface{}, path ...string) {
-	obj := t
-	for i, key := range path {
-		if i == len(path)-1 {
-			obj[key] = value
+func (t JsonTrie) Set(value interface{}, keys ...string) {
+	current := t
+	for index, key := range keys {
+		if index == len(keys)-1 {
+			current[key] = value
 			return
 		}
-		switch v := obj[key].(type) {
-		case JsonTrie:
-			obj = v
+		switch child := current[key].(type) {
 		case map[string]interface{}:
-			obj = v
+			current = child
 		default:
-			obj[key] = map[string]interface{}{}
-			obj = obj[key].(map[string]interface{})
+			current[key] = map[string]interface{}{}
+			current = current[key].(map[string]interface{})
 		}
 	}
 }
 
-func (t JsonTrie) Delete(path ...string) {
-	obj := t
-	for i, key := range path {
-		if i == len(path)-1 {
-			delete(obj, key)
-			return
+func (t JsonTrie) Delete(path ...string) error {
+	current := t
+	for index, key := range path {
+		if index == len(path)-1 {
+			if _, exists := current[key]; !exists {
+				return fmt.Errorf("path does not exist")
+			}
+			delete(current, key)
+			return nil
 		}
-		switch v := obj[key].(type) {
+		switch v := current[key].(type) {
 		case map[string]interface{}:
-			obj = v
-		case JsonTrie:
-			obj = v
+			current = v
 		default:
-			return
+			return fmt.Errorf("path does not exist")
 		}
 	}
+	return nil
 }
 
-func (t JsonTrie) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]interface{}(t))
+func (t JsonTrie) ToJSON() ([]byte, error) {
+	return json.Marshal(t)
 }
